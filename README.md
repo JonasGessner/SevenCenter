@@ -21,4 +21,8 @@ If you don't know how to compile and run this on your device then you probably s
 Made by Jonas Gessner (in just a few hours :P). UIImage blurring is based on FXBlurView
 
 
-©2013 Jonas Gessner
+Thanks to <a href="http://twitter.com/bensge">@bensge</a> for inspiration with his tweak "Ayra".
+
+
+© 2013 Jonas Gessner
+ 
