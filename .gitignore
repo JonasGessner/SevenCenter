@@ -15,7 +15,7 @@ profile
 *.moved-aside
 DerivedData
 .idea/
-.deb
+*.deb
 theos
 _/
 .git/
