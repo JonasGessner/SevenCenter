@@ -3,7 +3,7 @@ SevenCenter
 
 iOS 7 style NotificationCenter for iOS 5 & iOS 6
 
-<img src="https://raw.github.com/JonasGessner/SevenCenter/master/screenshot.png">
+<img src="https://raw.github.com/JonasGessner/SevenCenter/master/screenshot.png" height=568px width=320px>
 
 This has only been tested on iOS 6.1 on an iPhone. SevenCenter (probably) only works on iPhones, on iOS 5 & iOS 6.
 
