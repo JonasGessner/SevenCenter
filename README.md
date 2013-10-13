@@ -11,10 +11,9 @@ This has only been tested on iOS 6.1 on an iPhone. SevenCenter (probably) only w
 SevenCenter is available under the MIT license. You may not publish the compiled source code as a package in Cydia.
 
 
-##Set up instructions
+##Set-Up Instructions
 
-If you don't know how to compile and run this on your device then you probably shouldn't even attempt to do so :P
-
+If you don't know how to compile and run this on your device then you probably shouldn't even attempt it :P
 
 
 ##Credits
