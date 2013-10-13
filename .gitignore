@@ -21,3 +21,4 @@ _/
 .git/
 .theos/
 obj/
+*.zip
