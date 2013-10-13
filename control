@@ -1,0 +1,9 @@
+Package: de.j-gessner.sevencenter
+Name: SevenCenter
+Depends: mobilesubstrate
+Version: 0.0.1
+Architecture: iphoneos-arm
+Description: iOS 7 style NotificationCenter for iOS 5+ (Tested only on iOS 6.1) © 2013 Jonas Gessner
+Maintainer: Jonas Gessner
+Author: Jonas Gessner
+Section: Tweaks
