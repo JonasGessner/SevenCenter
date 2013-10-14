@@ -4,13 +4,13 @@
 #import <Accelerate/Accelerate.h>
 #import <CoreGraphics/CoreGraphics.h>
 
-#import "SBBulletinListView.h"
 
+#define kGrabberWidth 45.0f
+#define kGrabberHeight 17.0f
 
+FOUNDATION_EXTERN UIImage *_UICreateScreenUIImage(void);
 
-FOUNDATION_EXTERN UIImage *_UICreateScreenUIImage();
-
-NS_INLINE void makeGrabberImage(float progress, UIImageView *grabber, UIColor *baseColor, UIColor *topColor) {
+NS_INLINE void makeGrabberImage(float progress, UIImageView *grabber, UIColor *baseColor, UIColor *topColor, CGFloat width, CGFloat height) {
     UIGraphicsBeginImageContextWithOptions(grabber.bounds.size, NO, 0.0f);
     
     
@@ -24,10 +24,14 @@ NS_INLINE void makeGrabberImage(float progress, UIImageView *grabber, UIColor *b
         CGFloat horizontalSpacing = 0.15f;
         CGFloat verticalSpacing = 0.25f;
         
-        [path moveToPoint:(CGPoint){grabber.frame.size.width*horizontalSpacing, grabber.frame.size.height*0.5f}];
+        CGFloat widthDelta = (grabber.frame.size.width-width)/2.0f;
+        CGFloat heightDelta = (grabber.frame.size.height-height)/2.0f;
         
-        [path addLineToPoint:(CGPoint){grabber.frame.size.width*0.5f, grabber.frame.size.height*verticalSpacing+grabber.frame.size.height*verticalSpacing*2.0f*(1.0f-progress)}];
-        [path addLineToPoint:(CGPoint){grabber.frame.size.width*(1-horizontalSpacing), grabber.frame.size.height*0.5f}];
+        [path moveToPoint:(CGPoint){widthDelta+width*horizontalSpacing, grabber.frame.size.height*0.5f}];
+        
+        [path addLineToPoint:(CGPoint){grabber.frame.size.width*0.5f, heightDelta+height*verticalSpacing+height*verticalSpacing*2.0f*(1.0f-progress)}];
+        
+        [path addLineToPoint:(CGPoint){grabber.frame.size.width-widthDelta-width*horizontalSpacing, grabber.frame.size.height*0.5f}];
         
         [path stroke];
     };
@@ -46,7 +50,7 @@ NS_INLINE void makeGrabberImage(float progress, UIImageView *grabber, UIColor *b
 }
 
 
-NS_INLINE UIImage *blurredImage(UIImage *self, CGFloat radius, NSUInteger iterations, UIColor *tintColor) {
+NS_INLINE UIImage *blurredImage(UIImage *self, CGFloat radius, NSUInteger iterations, UIColor *tintColor, UIImageOrientation orientation) {
     //image must be nonzero size
     if (floorf(self.size.width) * floorf(self.size.height) <= 0.0f) {
         return self;
@@ -56,7 +60,7 @@ NS_INLINE UIImage *blurredImage(UIImage *self, CGFloat radius, NSUInteger iterat
     uint32_t boxSize = radius * self.scale;
     
     if (boxSize % 2 == 0) {
-        boxSize ++;
+        boxSize++;
     }
     
     //create image buffers
@@ -96,14 +100,14 @@ NS_INLINE UIImage *blurredImage(UIImage *self, CGFloat radius, NSUInteger iterat
     
     //apply tint
     if (tintColor && CGColorGetAlpha(tintColor.CGColor) > 0.0f) {
-        CGContextSetFillColorWithColor(ctx, [tintColor colorWithAlphaComponent:0.6f].CGColor);
+        CGContextSetFillColorWithColor(ctx, tintColor.CGColor);
         CGContextSetBlendMode(ctx, kCGBlendModeMultiply);
         CGContextFillRect(ctx, CGRectMake(0.0f, 0.0f, buffer1.width, buffer1.height));
     }
     
     //create image from context
     imageRef = CGBitmapContextCreateImage(ctx);
-    UIImage *image = [UIImage imageWithCGImage:imageRef scale:self.scale orientation:self.imageOrientation];
+    UIImage *image = [UIImage imageWithCGImage:imageRef scale:self.scale orientation:orientation];
     
     CGImageRelease(imageRef);
     CGContextRelease(ctx);
@@ -123,7 +127,7 @@ NS_INLINE UIImage *blurredImage(UIImage *self, CGFloat radius, NSUInteger iterat
 - (id)init {
     self = %orig;
     if (self) {
-        makeGrabberImage(0.0f, self, [UIColor colorWithWhite:0.1f alpha:0.9f], [UIColor colorWithWhite:1.0f alpha:0.9f]);
+        makeGrabberImage(0.0f, self, [UIColor colorWithWhite:0.1f alpha:0.9f], [UIColor colorWithWhite:1.0f alpha:0.9f], kGrabberWidth, kGrabberHeight);
         
         for (UIView *sub in self.subviews) {
             [sub removeFromSuperview];
@@ -139,28 +143,56 @@ NS_INLINE UIImage *blurredImage(UIImage *self, CGFloat radius, NSUInteger iterat
 
 static UIImageView *linenView = nil;
 
-+ (id)linen {
++ (UIImage *)linen {
     return nil;
 }
 
-- (void)layoutForOrientation:(int)arg1 {
+
+
+//#define DEBUG
+
+#ifdef DEBUG
+#define TIME_MEASURE_START(i) CFTimeInterval start##i = CFAbsoluteTimeGetCurrent()
+#define TIME_MEASURE_END(i) NSLog(@"ELAPSED TIME (%i) %f", i, CFAbsoluteTimeGetCurrent()-start##i)
+#else
+#define TIME_MEASURE_START(i)
+#define TIME_MEASURE_END(i)
+#endif
+
+
+- (void)layoutForOrientation:(UIInterfaceOrientation)orientation {
     if (!linenView) {
-        linenView = MSHookIvar<id>(self, "_linenView");
+        linenView = MSHookIvar<UIImageView *>(self, "_linenView");
         
-        MSHookIvar<id>(self, "_linenView") = nil;
+        MSHookIvar<UIImageView *>(self, "_linenView") = nil;
         
-//        CFTimeInterval start = CFAbsoluteTimeGetCurrent();
-        UIImage *raw = blurredImage(_UICreateScreenUIImage(), 27.5f, 2, [UIColor blackColor]);
-//        NSLog(@"ELAPSED TIME %f", CFAbsoluteTimeGetCurrent()-start);
+        [linenView setImage:nil];
         
-        [linenView setImage:[[UIImage alloc] initWithCGImage:raw.CGImage scale:raw.scale orientation:(UIImageOrientation)arg1-1]];
+        TIME_MEASURE_START(2);
         
-        linenView.opaque = YES;
+        dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{
+            TIME_MEASURE_START(0);
+            UIImage *screenImage = _UICreateScreenUIImage();
+            TIME_MEASURE_END(0);
+            
+            
+            TIME_MEASURE_START(1);
+            UIImage *finalImage = blurredImage(screenImage, 27.5f, 2, [UIColor colorWithWhite:0.0f alpha:0.5f], (UIImageOrientation)orientation-1);
+            TIME_MEASURE_END(1);
+            
+            TIME_MEASURE_END(2);
+            
+            dispatch_sync(dispatch_get_main_queue(), ^{
+                [linenView setImage:finalImage];
+                linenView.opaque = YES;
+            });
+        });
+        
         linenView.superview.clipsToBounds = YES;
         
-        UIImageView *grabber = MSHookIvar<id>(self, "_grabber");
+        UIImageView *grabber = MSHookIvar<UIImageView *>(self, "_grabber");
         
-        makeGrabberImage(0.0f, grabber, [UIColor colorWithWhite:1.0f alpha:0.3f], nil);
+        makeGrabberImage(0.0f, grabber, [UIColor colorWithWhite:1.0f alpha:0.3f], nil, kGrabberWidth, kGrabberHeight);
     }
     
     %orig;
@@ -182,9 +214,9 @@ static UIImageView *linenView = nil;
     
     linenView.frame = linenFrame;
     
-    UIImageView *grabber = MSHookIvar<id>(self, "_grabber");
+    UIImageView *grabber = MSHookIvar<UIImageView *>(self, "_grabber");
     
-    makeGrabberImage((y/linenFrame.size.height), grabber, [UIColor colorWithWhite:1.0f alpha:0.3f], nil);
+    makeGrabberImage((y/linenFrame.size.height), grabber, [UIColor colorWithWhite:1.0f alpha:0.3f], nil, kGrabberWidth, kGrabberHeight);
 }
 
 - (void)removeFromSuperview {
