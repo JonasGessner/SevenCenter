@@ -5,10 +5,8 @@
 #import <CoreGraphics/CoreGraphics.h>
 
 
-#define kGrabberWidth 45.0f
-#define kGrabberHeight 17.0f
+FOUNDATION_EXTERN UIImage *_UICreateScreenUIImage(void) NS_RETURNS_RETAINED;
 
-FOUNDATION_EXTERN UIImage *_UICreateScreenUIImage(void);
 
 NS_INLINE void makeGrabberImage(float progress, UIImageView *grabber, UIColor *baseColor, UIColor *topColor, CGFloat width, CGFloat height) {
     UIGraphicsBeginImageContextWithOptions(grabber.bounds.size, NO, 0.0f);
@@ -42,7 +40,7 @@ NS_INLINE void makeGrabberImage(float progress, UIImageView *grabber, UIColor *b
     if (topColor) {
         drawPath(4.5f, topColor);
     }
-
+    
     
     [grabber setImage:UIGraphicsGetImageFromCurrentImageContext()];
     
@@ -121,6 +119,80 @@ NS_INLINE UIImage *blurredImage(UIImage *self, CGFloat radius, NSUInteger iterat
 
 @end
 
+@interface SBBulletinWindowController : NSObject
+
++ (id)sharedInstance;
+- (UIInterfaceOrientation)windowOrientationWithoutOverrides;
+- (UIInterfaceOrientation)windowOrientation;
+
+@end
+
+@interface SBBulletinListView : UIView
+
+- (UIImageView *)linenView;
+
+@end
+
+@interface SBBulletinListController : UIViewController
+
+- (SBBulletinListView *)listView;
+
+@end
+
+
+
+#define kGrabberWidth 45.0f
+#define kGrabberHeight 17.0f
+
+//#define DEBUG
+
+#ifdef DEBUG
+#define TIME_MEASURE_START(i) CFTimeInterval start##i = CFAbsoluteTimeGetCurrent()
+#define TIME_MEASURE_END(i) NSLog(@"ELAPSED TIME (%i) %f", i, CFAbsoluteTimeGetCurrent()-start##i)
+#else
+#define TIME_MEASURE_START(i)
+#define TIME_MEASURE_END(i)
+#endif
+
+
+static UIImageView *linenView = nil;
+
+
+
+%group iOS5
+
+%hook SBBulletinListController
+- (void)_cleanupAfterHideListView {
+    linenView = nil;
+    %orig;
+}
+
+%end
+
+%end
+
+
+
+
+%group iOS6
+
+%hook SBBulletinListController
+
+- (void)_cleanupAfterHideListViewKeepingWindow:(BOOL)fp8 {
+    linenView = nil;
+    %orig;
+}
+
+%end
+
+%end
+
+
+
+
+
+%group general
+
 
 %hook SBBulletinListTabView
 
@@ -139,63 +211,57 @@ NS_INLINE UIImage *blurredImage(UIImage *self, CGFloat radius, NSUInteger iterat
 %end
 
 
-%hook SBBulletinListView
+%hook SBBulletinListController
 
-static UIImageView *linenView = nil;
+- (void)prepareToShowListViewAnimated:(BOOL)showListViewAnimated aboveBanner:(BOOL)banner {
+    UIImageOrientation orientation = (UIImageOrientation)[[%c(SBBulletinWindowController) sharedInstance] windowOrientation]-1;
+    
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{
+        TIME_MEASURE_START(0);
+        UIImage *screenImage = _UICreateScreenUIImage();
+        TIME_MEASURE_END(0);
+        
+        
+        TIME_MEASURE_START(1);
+        UIImage *finalImage = blurredImage(screenImage, 27.5f, 2, [UIColor colorWithWhite:0.0f alpha:0.5f], orientation);
+        TIME_MEASURE_END(1);
+        
+        while (linenView == nil) {}
+        
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [linenView setImage:finalImage];
+            linenView.opaque = YES;
+        });
+        
+        screenImage = nil;
+        
+    });
+    
+    %orig;
+}
+
+
+
+%end
+
+
+
+%hook SBBulletinListView
 
 + (UIImage *)linen {
     return nil;
 }
 
-
-
-//#define DEBUG
-
-#ifdef DEBUG
-#define TIME_MEASURE_START(i) CFTimeInterval start##i = CFAbsoluteTimeGetCurrent()
-#define TIME_MEASURE_END(i) NSLog(@"ELAPSED TIME (%i) %f", i, CFAbsoluteTimeGetCurrent()-start##i)
-#else
-#define TIME_MEASURE_START(i)
-#define TIME_MEASURE_END(i)
-#endif
-
-
-- (void)layoutForOrientation:(UIInterfaceOrientation)orientation {
-    if (!linenView) {
-        linenView = MSHookIvar<UIImageView *>(self, "_linenView");
-        
-        MSHookIvar<UIImageView *>(self, "_linenView") = nil;
-        
-        [linenView setImage:nil];
-        
-        TIME_MEASURE_START(2);
-        
-        dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{
-            TIME_MEASURE_START(0);
-            UIImage *screenImage = _UICreateScreenUIImage();
-            TIME_MEASURE_END(0);
-            
-            
-            TIME_MEASURE_START(1);
-            UIImage *finalImage = blurredImage(screenImage, 27.5f, 2, [UIColor colorWithWhite:0.0f alpha:0.5f], (UIImageOrientation)orientation-1);
-            TIME_MEASURE_END(1);
-            
-            TIME_MEASURE_END(2);
-            
-            dispatch_sync(dispatch_get_main_queue(), ^{
-                [linenView setImage:finalImage];
-                linenView.opaque = YES;
-            });
-        });
+- (id)initWithFrame:(CGRect)frame delegate:(id)delegate {
+    self = %orig;
+    if (self) {
+        linenView = self.linenView;
         
         linenView.superview.clipsToBounds = YES;
         
-        UIImageView *grabber = MSHookIvar<UIImageView *>(self, "_grabber");
-        
-        makeGrabberImage(0.0f, grabber, [UIColor colorWithWhite:1.0f alpha:0.3f], nil, kGrabberWidth, kGrabberHeight);
+        MSHookIvar<UIImageView *>(self, "_linenView") = nil;
     }
-    
-    %orig;
+    return self;
 }
 
 - (void)positionSlidingViewAtY:(float)y {
@@ -214,21 +280,28 @@ static UIImageView *linenView = nil;
     
     linenView.frame = linenFrame;
     
+    
     UIImageView *grabber = MSHookIvar<UIImageView *>(self, "_grabber");
     
-    makeGrabberImage((y/linenFrame.size.height), grabber, [UIColor colorWithWhite:1.0f alpha:0.3f], nil, kGrabberWidth, kGrabberHeight);
+    makeGrabberImage((linenFrame.size.height != 0.0f ? (y/linenFrame.size.height) : 0.0f), grabber, [UIColor colorWithWhite:1.0f alpha:0.3f], nil, kGrabberWidth, kGrabberHeight);
 }
 
-- (void)removeFromSuperview {
-    %orig;
-    linenView = nil;
-}
+%end
 
 %end
 
 
 %ctor {
     @autoreleasepool {
-        %init();
+        if (kCFCoreFoundationVersionNumber >= kCFCoreFoundationVersionNumber_iOS_5_0) {
+            %init(general);
+            
+            if (kCFCoreFoundationVersionNumber >= kCFCoreFoundationVersionNumber_iOS_6_0) {
+                %init(iOS6);
+            }
+            else {
+                %init(iOS5);
+            }
+        }
     }
 }
